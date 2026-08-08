@@ -1,0 +1,123 @@
+name: external-acceptance
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: external-acceptance
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Black-box acceptance matrix
+        run: |
+          set -uo pipefail
+
+          failures=0
+
+          # Each check retries once after 10 s so a single network blip does
+          # not page anyone; a persistent failure turns the run red and
+          # GitHub emails the owner.
+          check() {
+            local name="$1"
+            shift
+            if "$@" >/dev/null 2>&1; then
+              echo "ok   ${name}"
+              return
+            fi
+            sleep 10
+            if "$@" >/dev/null 2>&1; then
+              echo "ok   ${name} (after retry)"
+              return
+            fi
+            echo "FAIL ${name}"
+            failures=$((failures + 1))
+          }
+
+          expect_status() {
+            local expected="$1" url="$2" got
+            got="$(curl -s -o /dev/null --max-time 15 -w '%{http_code}' "${url}")"
+            [ "${got}" = "${expected}" ]
+          }
+
+          expect_redirect() {
+            local target="$1" url="$2" got
+            got="$(curl -s -o /dev/null --max-time 15 -w '%{redirect_url}' "${url}")"
+            [ "${got}" = "${target}" ]
+          }
+
+          body_contains() {
+            local needle="$1" url="$2" body
+            body="$(curl -s --max-time 15 "${url}")" || return 1
+            case "${body}" in *"${needle}"*) return 0 ;; *) return 1 ;; esac
+          }
+
+          header_contains() {
+            local needle="$1" url="$2"
+            curl -sI --max-time 15 "${url}" | grep -qi "${needle}"
+          }
+
+          # --- apex ---------------------------------------------------------
+          check "apex 200"                 expect_status 200 https://snowballsh.com/
+          check "apex served by Caddy"     header_contains 'server: Caddy' https://snowballsh.com/
+          check "apex canonical tag"       body_contains '<link rel="canonical" href="https://snowballsh.com/">' https://snowballsh.com/
+          check "apex health ready"        body_contains 'ok' https://snowballsh.com/health/ready
+          check "styled 404"               body_contains 'This page melted away' https://snowballsh.com/snowsys-monitor-absent
+          check "404 status"               expect_status 404 https://snowballsh.com/snowsys-monitor-absent
+          check "blog page 200"            expect_status 200 https://snowballsh.com/blogs/
+          check "sitemap on apex"          body_contains 'https://snowballsh.com/sitemap-0.xml' https://snowballsh.com/sitemap-index.xml
+          check "robots on apex"           body_contains 'Sitemap: https://snowballsh.com/sitemap-index.xml' https://snowballsh.com/robots.txt
+
+          # --- redirects ----------------------------------------------------
+          check "http to https"            expect_redirect 'https://snowballsh.com/' http://snowballsh.com/
+          check "www to apex"              expect_redirect 'https://snowballsh.com/' https://www.snowballsh.com/
+          check "project path to github.io" expect_redirect 'https://snowballsh.github.io/Gorilla/' https://snowballsh.com/Gorilla/
+          check "github.io stub redirect"  body_contains 'location.replace' https://snowballsh.github.io/
+          check "rimehand 200"             expect_status 200 https://rimehand.snowballsh.com/
+
+          # --- identity planes ----------------------------------------------
+          check "headscale health"         expect_status 200 https://headscale.snowballsh.com/health
+          check "authelia discovery"       body_contains '"issuer":"https://auth.snowballsh.com"' https://auth.snowballsh.com/.well-known/openid-configuration
+          check "admin network gate"       body_contains 'not available on this network' https://admin.snowballsh.com/
+
+          # --- DNS ----------------------------------------------------------
+          dns_a_is_eip() {
+            [ "$(dig +short @1.1.1.1 snowballsh.com A | head -1)" = "3.225.113.178" ]
+          }
+          dns_aaaa_absent() {
+            [ -z "$(dig +short @1.1.1.1 snowballsh.com AAAA)" ]
+          }
+          dns_mx_migadu() {
+            dig +short @1.1.1.1 snowballsh.com MX | grep -q 'migadu.com'
+          }
+          check "apex A is the EIP"        dns_a_is_eip
+          check "apex AAAA absent"         dns_aaaa_absent
+          check "MX still Migadu"          dns_mx_migadu
+
+          # --- TLS expiry margin (>= 21 days) -------------------------------
+          cert_margin_ok() {
+            local not_after expiry now
+            not_after="$(echo | openssl s_client -servername snowballsh.com \
+              -connect snowballsh.com:443 2>/dev/null |
+              openssl x509 -noout -enddate | cut -d= -f2)"
+            [ -n "${not_after}" ] || return 1
+            expiry="$(date -d "${not_after}" +%s)"
+            now="$(date +%s)"
+            [ $(((expiry - now) / 86400)) -ge 21 ]
+          }
+          check "apex cert margin >= 21d"  cert_margin_ok
+
+          echo
+          if [ "${failures}" -gt 0 ]; then
+            echo "${failures} check(s) failed persistently"
+            exit 1
+          fi
+          echo "all checks passed"
