@@ -60,6 +60,16 @@ jobs:
             case "${body}" in *"${needle}"*) return 0 ;; *) return 1 ;; esac
           }
 
+          json_satisfies() {
+            local filter="$1" url="$2" response body status
+            response="$(curl --fail --silent --show-error --max-time 15 \
+              --write-out $'\n%{http_code}' "${url}")" || return 1
+            status="${response##*$'\n'}"
+            body="${response%$'\n'*}"
+            [ "${status}" = "200" ] || return 1
+            jq -e "${filter}" >/dev/null <<<"${body}"
+          }
+
           header_contains() {
             local needle="$1" url="$2"
             curl -sI --max-time 15 "${url}" | grep -qi "${needle}"
@@ -87,6 +97,12 @@ jobs:
           check "headscale health"         expect_status 200 https://headscale.snowballsh.com/health
           check "authelia discovery"       body_contains '"issuer":"https://auth.snowballsh.com"' https://auth.snowballsh.com/.well-known/openid-configuration
           check "admin network gate"       body_contains 'not available on this network' https://admin.snowballsh.com/
+
+          # --- blog API ----------------------------------------------------
+          check "blog API health"          json_satisfies '.database == "ok"' https://api.blogs.snowballsh.com/api/v1/health
+          check "blog API posts nonempty"  json_satisfies '.posts | type == "array" and length > 0' https://api.blogs.snowballsh.com/api/v1/posts
+          check "blog public admin hidden" expect_status 404 https://api.blogs.snowballsh.com/api/v1/admin/posts
+          check "blog admin network gate"  expect_status 403 https://blogs-admin.snowballsh.com/api/v1/health
 
           # --- DNS ----------------------------------------------------------
           dns_a_is_eip() {
