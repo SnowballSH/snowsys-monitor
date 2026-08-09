@@ -108,6 +108,11 @@ jobs:
           check "foundationui homepage"    body_contains '<title>Foundation UI</title>' https://foundationui.snowballsh.com/
           check "foundationui liveness"    expect_status 200 https://foundationui.snowballsh.com/health/live
 
+          # --- file serving (Phase 10) --------------------------------------
+          check "static canary 200"        body_contains 'snowsys-files-canary-v1' https://static.snowballsh.com/canary.txt
+          check "static directory hidden"  expect_status 404 https://static.snowballsh.com/canary/
+          check "files network gate"       body_contains 'not available on this network' https://files.snowballsh.com/
+
           # --- DNS ----------------------------------------------------------
           dns_a_is_eip() {
             [ "$(dig +short @1.1.1.1 snowballsh.com A | head -1)" = "3.225.113.178" ]
