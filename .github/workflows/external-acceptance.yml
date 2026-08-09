@@ -61,8 +61,12 @@ jobs:
           }
 
           json_satisfies() {
-            local filter="$1" url="$2" body
-            body="$(curl --fail --silent --show-error --max-time 15 "${url}")" || return 1
+            local filter="$1" url="$2" response body status
+            response="$(curl --fail --silent --show-error --max-time 15 \
+              --write-out $'\n%{http_code}' "${url}")" || return 1
+            status="${response##*$'\n'}"
+            body="${response%$'\n'*}"
+            [ "${status}" = "200" ] || return 1
             jq -e "${filter}" >/dev/null <<<"${body}"
           }
 
