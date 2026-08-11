@@ -104,6 +104,12 @@ jobs:
           check "blog public admin hidden" expect_status 404 https://api.blogs.snowballsh.com/api/v1/admin/posts
           check "blog admin network gate"  expect_status 403 https://blogs-admin.snowballsh.com/api/v1/health
 
+          # --- blog frontend (Phase 8.7) ------------------------------------
+          check "blogs homepage brand"     body_contains 'SnowballSH Blogs' https://blogs.snowballsh.com/
+          check "blogs math post 200"      expect_status 200 https://blogs.snowballsh.com/posts/fun_integral_1
+          check "blogs admin unrouted"     expect_status 404 https://blogs.snowballsh.com/api/v1/admin/posts
+          check "blogs asset via origin"   expect_status 200 https://blogs.snowballsh.com/api/v1/posts/college_year_1/assets/assets/nyc_times_square.jpg
+
           # --- Foundation UI ------------------------------------------------
           check "foundationui homepage"    body_contains '<title>Foundation UI</title>' https://foundationui.snowballsh.com/
           check "foundationui liveness"    expect_status 200 https://foundationui.snowballsh.com/health/live
