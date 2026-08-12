@@ -82,7 +82,8 @@ jobs:
           check "apex health ready"        body_contains 'ok' https://snowballsh.com/health/ready
           check "styled 404"               body_contains 'This page melted away' https://snowballsh.com/snowsys-monitor-absent
           check "404 status"               expect_status 404 https://snowballsh.com/snowsys-monitor-absent
-          check "blog page 200"            expect_status 200 https://snowballsh.com/blogs/
+          check "blogs prefix 301"         expect_status 301 https://snowballsh.com/blogs/
+          check "blogs prefix target"      expect_redirect 'https://blogs.snowballsh.com' https://snowballsh.com/blogs/
           check "sitemap on apex"          body_contains 'https://snowballsh.com/sitemap-0.xml' https://snowballsh.com/sitemap-index.xml
           check "robots on apex"           body_contains 'Sitemap: https://snowballsh.com/sitemap-index.xml' https://snowballsh.com/robots.txt
 
