@@ -98,6 +98,7 @@ jobs:
           check "headscale health"         expect_status 200 https://headscale.snowballsh.com/health
           check "authelia discovery"       body_contains '"issuer":"https://auth.snowballsh.com"' https://auth.snowballsh.com/.well-known/openid-configuration
           check "admin network gate"       body_contains 'not available on this network' https://admin.snowballsh.com/
+          check "admin network gate 403"   expect_status 403 https://admin.snowballsh.com/
 
           # --- blog API ----------------------------------------------------
           check "blog API health"          json_satisfies '.database == "ok"' https://api.blogs.snowballsh.com/api/v1/health
