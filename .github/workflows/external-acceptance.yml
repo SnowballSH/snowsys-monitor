@@ -2,7 +2,10 @@ name: external-acceptance
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Off-peak minutes: GitHub throttles the crowded :00/:30 slots, which
+    # silently starved this schedule during load (10+ hour gap observed
+    # 2026-08-27). Same 30-minute cadence, quieter slots.
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -141,18 +144,40 @@ jobs:
           check "apex AAAA absent"         dns_aaaa_absent
           check "MX still Migadu"          dns_mx_migadu
 
-          # --- TLS expiry margin (>= 21 days) -------------------------------
+          # --- TLS expiry margin (>= 21 days), every public vhost -----------
+          # Gated names answer 403 over HTTPS; the handshake is what this
+          # validates, so the gate does not matter here.
           cert_margin_ok() {
-            local not_after expiry now
-            not_after="$(echo | openssl s_client -servername snowballsh.com \
-              -connect snowballsh.com:443 2>/dev/null |
+            local name="$1" not_after expiry now
+            not_after="$(echo | openssl s_client -servername "${name}" \
+              -connect "${name}:443" 2>/dev/null |
               openssl x509 -noout -enddate | cut -d= -f2)"
             [ -n "${not_after}" ] || return 1
             expiry="$(date -d "${not_after}" +%s)"
             now="$(date +%s)"
             [ $(((expiry - now) / 86400)) -ge 21 ]
           }
-          check "apex cert margin >= 21d"  cert_margin_ok
+          tls_names="
+            snowballsh.com
+            www.snowballsh.com
+            test.snowballsh.com
+            headscale.snowballsh.com
+            auth.snowballsh.com
+            admin.snowballsh.com
+            api.blogs.snowballsh.com
+            blogs.snowballsh.com
+            blogs-admin.snowballsh.com
+            foundationui.snowballsh.com
+            static.snowballsh.com
+            files.snowballsh.com
+            grafana.snowballsh.com
+            deploy.snowballsh.com
+            llm.snowballsh.com
+            llm-admin.snowballsh.com
+          "
+          for tls_name in ${tls_names}; do
+            check "cert margin >= 21d ${tls_name}" cert_margin_ok "${tls_name}"
+          done
 
           echo
           if [ "${failures}" -gt 0 ]; then
