@@ -123,6 +123,16 @@ jobs:
           check "static canary 200"        body_contains 'snowsys-files-canary-v1' https://static.snowballsh.com/canary.txt
           check "static directory hidden"  expect_status 404 https://static.snowballsh.com/canary/
           check "files network gate"       body_contains 'not available on this network' https://files.snowballsh.com/
+          check "files network gate 403"   expect_status 403 https://files.snowballsh.com/
+
+          # --- tailnet-gated operator surfaces ------------------------------
+          # Grafana (Phase 8.6) and the deploy UI (Phase 11.5) exist only for
+          # a tailnet source; from the public Internet each must refuse before
+          # Authelia is ever consulted. A 302 here would mean the source gate
+          # has fallen away and the login page is public.
+          check "grafana network gate 403" expect_status 403 https://grafana.snowballsh.com/
+          check "deploy network gate 403"  expect_status 403 https://deploy.snowballsh.com/
+          check "deploy API network gate"  expect_status 403 https://deploy.snowballsh.com/api/v1/services
 
           # Phase 12 LLM gateway (D038): bearer keys are the public boundary;
           # llm-admin sits behind the tailnet source gate.
