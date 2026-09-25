@@ -57,6 +57,15 @@ call resets the inactivity clock, so the result is checked from outside:
 - To restore a disabled schedule: `gh workflow enable external-acceptance.yml
   -R SnowballSH/snowsys-monitor`, run as the owner.
 
+The `keepalive` job runs in the same workflow run as the `probe` job and is
+deliberately not `continue-on-error`. If the enable call fails, the run is
+red and emails the owner even though every probe passed. Check which job
+failed before treating a failure email as an outage: a red `keepalive` with
+a green `probe` means the call failed (a GitHub API error, or a change to
+the token's `actions: write` permission), not the host. Hiding that failure
+would keep a persistent one quiet until the 60-day disable. One red run
+costs the dead-man's clock one run gap, well inside its 18 hours.
+
 ## Proving that a red run reaches the owner
 
 Run the workflow once with the forced-failure input. It adds one check that
