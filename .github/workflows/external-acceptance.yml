@@ -149,6 +149,11 @@ jobs:
           check "llm unknown route 404"    expect_status 404 https://llm.snowballsh.com/
           check "llm-admin network gate"   expect_status 403 https://llm-admin.snowballsh.com/
 
+          # Kami (D042): a public game whose own password is the boundary;
+          # health answers without a session, the board list refuses without one.
+          check "kami health"              json_satisfies '.ok == true' https://kami.snowballsh.com/api/health
+          check "kami boards need sign-in" expect_status 401 https://kami.snowballsh.com/api/boards
+
           # --- DNS ----------------------------------------------------------
           dns_a_is_eip() {
             [ "$(dig +short @1.1.1.1 snowballsh.com A | head -1)" = "3.225.113.178" ]
@@ -193,6 +198,7 @@ jobs:
             deploy.snowballsh.com
             llm.snowballsh.com
             llm-admin.snowballsh.com
+            kami.snowballsh.com
           "
           for tls_name in ${tls_names}; do
             check "cert margin >= 21d ${tls_name}" cert_margin_ok "${tls_name}"

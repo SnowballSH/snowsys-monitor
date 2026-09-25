@@ -11,8 +11,8 @@ probes only.
 ## What a run checks
 
 Each run prints its own total (`all N checks passed`, or `F of N checks
-failed persistently`). On 2026-09-25 that was 58: 42 named checks plus the
-21-day certificate margin on each of the 16 public vhosts. A check retries
+failed persistently`). On 2026-09-25 that was 61: 44 named checks plus the
+21-day certificate margin on each of the 17 public vhosts. A check retries
 once after 10 seconds before it counts as failed.
 
 The gated checks (admin, files, grafana, deploy, llm-admin) expect `403`
